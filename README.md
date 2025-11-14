@@ -9,6 +9,19 @@ Chrome](https://github.com/user-attachments/assets/dd6efe03-1ed9-48e0-86a0-3b43a
 
 
 
+<!-- Botón en README.md -->
+<a href="https://leonirusta.github.io/Multiplayer-pool-game/login/login.html" target="_blank" style="
+  display: inline-block;
+  padding: 12px 24px;
+  background-color: #1e90ff;
+  color: white;
+  font-weight: bold;
+  text-decoration: none;
+  border-radius: 8px;
+  text-align: center;
+">
+  Abrir mi juego de Pool
+</a>
 
 
 
