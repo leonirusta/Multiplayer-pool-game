@@ -20,7 +20,7 @@ Chrome](https://github.com/user-attachments/assets/dd6efe03-1ed9-48e0-86a0-3b43a
   border-radius: 8px;
   text-align: center;
 ">
-  Abrir mi juego de Pool
+   Play My Pool Game
 </a>
 
 
