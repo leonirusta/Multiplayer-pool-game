@@ -446,13 +446,27 @@
                     <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 2.5a5.5 5.5 0 0 1 5.5 5.5c0 1.57-.67 3-1.69 3.99a7.5 7.5 0 0 1 4.2 6.32V20H3.99v-1.69a7.5 7.5 0 0 1 4.2-6.32A5.5 5.5 0 0 1 6.5 8a5.5 5.5 0 0 1 5.5-5.5Z" />
                     </svg>
-                    <input 
-                        type="email" 
-                        class="form-input" 
+                    <input
+                        type="email"
+                        class="form-input"
                         id="login-input"
-                        placeholder="Email o Nombre de Usuario" 
+                        placeholder="Email o Nombre de Usuario"
                         aria-label="Email o Nombre de Usuario"
                         autocomplete="email"
+                        required
+                    />
+                </div>
+                <div class="input-group register-only" id="username-group">
+                    <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2.5a5.5 5.5 0 0 1 5.5 5.5c0 1.57-.67 3-1.69 3.99a7.5 7.5 0 0 1 4.2 6.32V20H3.99v-1.69a7.5 7.5 0 0 1 4.2-6.32A5.5 5.5 0 0 1 6.5 8a5.5 5.5 0 0 1 5.5-5.5Z" />
+                    </svg>
+                    <input
+                        type="text"
+                        class="form-input"
+                        id="username-input"
+                        placeholder="Nombre de Usuario"
+                        aria-label="Nombre de Usuario"
+                        autocomplete="username"
                         required
                     />
                 </div>
@@ -470,7 +484,7 @@
                     />
                 </div>
                 <div class="form-options login-only">
-                    <a href="javascript:void(0);" id="switchToReset" class="register-link">¿Olvidaste tu contraseña?</a>
+                    <a href="javascript:void(0);" id="switchToReset" class="register-link">¿Olvidaste tu contraseña?</a> | <a href="javascript:void(0);" id="switchToRegister" class="register-link">Registrarse</a>
                 </div>
 
                 <!-- NUEVO: Contenedor para mensajes de error -->
@@ -489,7 +503,7 @@
     <!-- SDKs de Firebase -->
     <script type="module">
                     // --- Lógica de la Interfaz de Usuario ---
-                    import { loginWithUsernameOrEmail, sendResetPasswordEmail, db, onSessionStateChanged } from './auth.js'; // Importar db para la lógica de perfil
+                    import { loginWithUsernameOrEmail, sendResetPasswordEmail, registerWithEmail, db, onSessionStateChanged } from './auth.js'; // Importar db para la lógica de perfil
         
                     document.addEventListener('DOMContentLoaded', () => {
                         const loginForm = document.getElementById('login-form');
@@ -498,12 +512,15 @@
                         const loadingSpinner = document.getElementById('loading-spinner');
                         const switchToLogin = document.getElementById('switchToLogin');
                         const switchToReset = document.getElementById('switchToReset'); // NUEVO
+                        const switchToRegister = document.getElementById('switchToRegister'); // NUEVO
                         const subtitle = document.querySelector('.app-subtitle');
                         const submitButton = document.querySelector('.btn-primary');
                         const passwordGroup = document.getElementById('password-group'); // MODIFICADO: Usar ID
                         const loginInput = document.getElementById('login-input'); // NUEVO
                         const errorMessageElement = document.getElementById('error-message'); // NUEVO
                         const loginContent = document.getElementById('login-content'); // Obtener el contenido del login
+                        const usernameInput = document.getElementById('username-input'); // NUEVO
+                        usernameInput.required = false; // Inicialmente no requerido en modo login
         
                         // Ocultar el contenido del login inicialmente
                         loginContent.style.display = 'none';
@@ -563,6 +580,7 @@
             loginForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const isResetMode = loginContainer.classList.contains('reset-mode');
+                const isRegisterMode = loginContainer.classList.contains('register-mode');
                 const loginValue = loginInput.value;
                 errorMessageElement.textContent = '';
                 errorMessageElement.classList.remove('success');
@@ -574,16 +592,21 @@
                         errorMessageElement.classList.add('success');
                         submitButton.disabled = true;
                         return;
+                    } else if (isRegisterMode) {
+                        const username = document.getElementById('username-input').value;
+                        const email = loginValue;
+                        const password = passwordGroup.querySelector('input').value;
+                        await registerWithEmail(username, email, password);
+                        const loginSound = new Audio('../audio/login.mp3');
+                        loginSound.play().catch(e => console.error("Error al reproducir el sonido de login:", e));
+                        triggerDisintegration(); // Redirigir a home.html
+                    } else {
+                        const password = passwordGroup.querySelector('input').value;
+                        await loginWithUsernameOrEmail(loginValue, password);
+                        const loginSound = new Audio('../audio/login.mp3');
+                        loginSound.play().catch(e => console.error("Error al reproducir el sonido de login:", e));
+                        triggerDisintegration(); // Redirigir a home.html
                     }
-                    let password = '';
-                    if (!isResetMode) {
-                        password = passwordGroup.querySelector('input').value;
-                    }
-
-                    await loginWithUsernameOrEmail(loginValue, password);
-                    const loginSound = new Audio('../audio/login.mp3');
-                    loginSound.play().catch(e => console.error("Error al reproducir el sonido de login:", e));
-                    triggerDisintegration(); // Redirigir a home.html
                 } catch (error) {
                     console.error("Error de autenticación:", error);
                     let friendlyMessage = "Ocurrió un error. Inténtalo de nuevo.";
@@ -603,7 +626,7 @@
                         case 'auth/invalid-email':
                             friendlyMessage = "El formato del correo electrónico no es válido.";
                             break;
-                    
+
                     }
                     errorMessageElement.textContent = friendlyMessage;
                 }
@@ -623,6 +646,8 @@
 
                 passwordGroup.style.display = 'flex';
                 passwordGroup.querySelector('input').required = true; // Reactivar
+                document.getElementById('username-group').style.display = 'none';
+                usernameInput.required = false;
                 document.getElementById('switchToLoginContainer').style.display = 'none';
             });
             // --- NUEVO: Lógica para cambiar a modo restablecer contraseña ---
@@ -639,6 +664,25 @@
                 loginInput.ariaLabel = "Correo Electrónico";
                 passwordGroup.style.display = 'none';
                 passwordGroup.querySelector('input').required = false; // Desactivar
+                document.getElementById('username-group').style.display = 'none';
+                usernameInput.required = false;
+                document.getElementById('switchToLoginContainer').style.display = 'block';
+            });
+            // --- NUEVO: Lógica para cambiar a modo registro ---
+            switchToRegister.addEventListener('click', (e) => {
+                e.preventDefault();
+                loginContainer.classList.add('register-mode');
+                loginContainer.classList.remove('reset-mode');
+                errorMessageElement.textContent = '';
+                submitButton.disabled = false;
+                subtitle.textContent = 'Regístrate para jugar';
+                submitButton.textContent = 'Registrarse';
+                loginInput.placeholder = "Correo Electrónico";
+                loginInput.ariaLabel = "Correo Electrónico";
+                passwordGroup.style.display = 'flex';
+                passwordGroup.querySelector('input').required = true;
+                document.getElementById('username-group').style.display = 'flex';
+                usernameInput.required = true;
                 document.getElementById('switchToLoginContainer').style.display = 'block';
             });
         });
