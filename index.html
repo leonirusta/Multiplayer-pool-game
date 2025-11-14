@@ -1,0 +1,2170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Juego de BlackBal con Canvas</title>
+    <!-- NUEVO: Evita el error 404 de favicon.ico en la consola -->
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+    <link rel="manifest" href="login/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-orientation" content="landscape">
+    <link rel="apple-touch-icon" href="imajenes/apple-touch-icon.png">
+    <script>
+        window.addEventListener('load', () => {
+            if (document.fullscreenEnabled || document.webkitFullscreenEnabled || document.mozFullScreenEnabled || document.msFullscreenEnabled) {
+                const elem = document.documentElement;
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen().catch(() => {});
+                } else if (elem.webkitRequestFullscreen) {
+                    elem.webkitRequestFullscreen().catch(() => {});
+                } else if (elem.mozRequestFullScreen) {
+                    elem.mozRequestFullScreen().catch(() => {});
+                } else if (elem.msRequestFullscreen) {
+                    elem.msRequestFullscreen().catch(() => {});
+                }
+            }
+        });
+    </script>
+    <style>
+        /* Reinicio CSS para asegurar que el HTML y el Body ocupen el 100% */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* Asegura que no haya scrollbars en el body */
+            /* --- NUEVO: Mejoras para la experiencia táctil --- */
+            touch-action: none; /* Evita acciones del navegador como hacer zoom o scroll */
+            user-select: none; /* Evita que el texto se seleccione al tocar */
+            box-sizing: border-box; /* Incluye padding y border en el ancho/alto */
+        }
+        #gameContainer {
+            position: relative; /* Cambiado de absolute para que los cálculos sean más sencillos */
+            width: 100%;
+            height: 100%;
+        }
+        /* --- NUEVO: Estilos para la pantalla de rotación --- */
+        #rotate-device-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #0d203b;
+            z-index: 10000;
+            display: none; /* Oculto por defecto */
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-family: 'Roboto', sans-serif;
+            text-align: center;
+        }
+        #rotate-device-overlay.visible {
+            display: flex;
+        }
+        #rotate-device-overlay svg {
+            width: 80px; height: 80px; margin-bottom: 20px; animation: rotate-pulse 2.5s infinite ease-in-out;
+        }
+        /* --- NUEVO: Estilos para forzar la orientación horizontal en móviles --- */
+        #orientation-lock-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #0d203b;
+            z-index: 200; /* Por encima de todo */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        #orientation-lock-screen svg {
+            width: 64px;
+            height: 64px;
+            fill: white;
+            margin-bottom: 20px;
+            animation: rotate-animation 2s infinite linear;
+        }
+        @keyframes rotate-animation {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(90deg); }
+        }
+
+
+        #play-button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+
+        /* --- NUEVO: Estilos para la pantalla de carga --- */
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #0d203b;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            transition: opacity 0.5s ease;
+        }
+        #progress-container {
+            width: 80%;
+            max-width: 400px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        #progress-bar {
+            width: 0%;
+            height: 20px;
+            background-color: #2ecc71;
+            transition: width 0.2s ease;
+        }
+        #progress-text {
+            margin-top: 10px;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background-color: #0d203b; /* Un azul oscuro más profundo */
+        }
+        /* --- NUEVO: Estilos para los controles de tamaño de la mesa --- */
+        #table-resize-controls {
+            position: absolute;
+            top: 100px;
+            left: 20px;
+            z-index: 20;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+            display: none; /* Oculto por defecto */
+        }
+        #table-resize-controls input {
+            width: 60px;
+        }
+
+        /* --- MODIFICACIÓN: Usar una clase para que ambos puntos compartan estilo --- */
+        .spin-selector-dot {
+            position: absolute;
+            width: 20%; /* --- MODIFICACIÓN: Punto un poco más pequeño --- */
+            height: 20%;
+            background-color: #e74c3c; /* Rojo */
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            border: 1px solid rgba(0,0,0,0.5);
+            box-shadow: 0 0 5px #e74c3c;
+            /* --- MODIFICACIÓN: El centrado ahora se hará con la posición calculada --- */
+            transform: translate(-50%, -50%);
+        }
+
+        /* --- NUEVO: Estilos para el modal del selector de efecto --- */
+        #spinModalOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 50;
+            display: none; /* Oculto por defecto */
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+        }
+        #largeSpinSelector {
+            width: 35vh; /* Tamaño grande, relativo a la altura de la pantalla */
+            height: 35vh;
+            max-width: 90vw; /* Evitar que sea demasiado grande en pantallas anchas */
+            max-height: 90vw;
+            position: relative;
+            cursor: pointer;
+            transform: scale(0.8);
+            border-radius: 50%;
+            /* --- MODIFICACIÓN: Usar la imagen de la bola blanca como fondo --- */
+            background-image: url('imajenes/BolasMetidas/efecto.png');
+            background-size: contain; /* Asegura que toda la bola sea visible */
+            background-position: center;
+            background-repeat: no-repeat;
+            background-color: transparent; /* Evita que se vea un color de fondo */
+            transition: transform 0.2s ease-in-out;
+        }
+        #spinModalOverlay.visible {
+            display: flex;
+            opacity: 1;
+        }
+        #spinModalOverlay.visible #largeSpinSelector {
+            transform: scale(1);
+        }
+        /* --- SOLUCIÓN: Indicar explícitamente al navegador que el canvas no es para hacer scroll --- */
+        /* Esto ayuda a eliminar las advertencias de "non-passive event listener". */
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        /* --- NUEVO: Estilo para la información de bolas entroneradas --- */
+        #pocketedInfo {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+            display: none; /* Oculto por defecto */
+        }
+        /* --- NUEVO: Estilo para el botón de prueba --- */
+        #testPocketButton {
+            position: absolute;
+            top: 130px; /* Debajo del panel de información del jugador */
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 8px 16px;
+            z-index: 10;
+            cursor: pointer;
+        }
+        /* --- NUEVO: Estilos para el visualizador de bolas entroneradas --- */
+        #pocketed-balls-display {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex; /* Para alinear las bolas en horizontal */
+            gap: 8px; /* Espacio entre las bolas */
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 8px;
+            border-radius: 8px;
+            z-index: 10;
+            height: 36px; /* Altura fija para el contenedor */
+            align-items: center;
+        }
+        .pocketed-ball-icon {
+            width: 32px; /* Tamaño del icono de la bola */
+            height: 32px;
+            border-radius: 50%;
+            background-color: #ccc; /* Color de fondo por si la imagen no carga */
+            /* --- CORREGIDO: Hacemos un "zoom" a la imagen para ocultar los bordes blancos --- */
+            background-size: 115%; /* Un poco más grande que el contenedor */
+            background-position: center; /* Asegura que la imagen esté centrada */
+            flex-shrink: 0; /* Evita que los iconos se encojan */
+        }
+        /* --- NUEVO: Estilo para los contenedores de bolas de jugador --- */
+        .pocketed-balls-container {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap; /* Asegura que los elementos permanezcan en una sola fila */
+            gap: 0.5vw; /* Espacio responsivo más pequeño entre los elementos */
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 0.5vw; /* Padding responsivo más pequeño */
+            border-radius: 8px;
+            z-index: 10;
+            min-height: 25px; /* Altura mínima más pequeña */
+            width: auto; /* Ancho automático para el contenido */
+            align-items: center;
+            box-sizing: border-box;
+            /* flex-shrink y max-width eliminados para permitir que el contenedor crezca */
+        }
+        .player-avatar {
+            width: 3.5vw; /* Tamaño responsivo aún más pequeño para el avatar */
+            height: 3.5vw; 
+            margin-right: 0.5vw; /* Espacio responsivo más pequeño */
+            /* flex-shrink: 0; */ /* Eliminado para permitir que se encoja */
+            transition: filter 0.3s ease; 
+        }
+
+        .player-avatar.active .timer-line {
+            stroke: #2ecc71; /* Borde verde vibrante para el temporizador */
+        }
+
+        /* --- NUEVO: Estilos para la burbuja de chat debajo del avatar --- */
+        .player-chat-bubble {
+            position: absolute;
+            bottom: -20px; /* Posicionar debajo del avatar, más abajo */
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7); /* Restaurar color original */
+            border: none; /* Eliminar borde temporal */
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 1.2vw; /* Aumentado */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 200px; /* Aumentado */
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            pointer-events: none; /* Para que no interfiera con los clics */
+            z-index: 5; /* Restaurar z-index original */
+        }
+
+        /* --- SOLUCIÓN: Contrarrestar la inversión del contenedor padre para la burbuja del jugador 1 --- */
+        #player1PocketedContainer .player-chat-bubble {
+            transform: translateX(-50%) scaleX(-1); /* Invertir solo la burbuja para contrarrestar el padre */
+        }
+
+        .player-chat-bubble.show {
+            opacity: 1;
+        }
+
+        .player-chat-bubble.fade-out {
+            animation: fadeOutBubble 15s forwards; /* Aumentar duración a 15 segundos */
+        }
+
+        @keyframes fadeOutBubble {
+            0% { opacity: 1; }
+            90% { opacity: 1; } /* Permanece opaco por 13.5 segundos */
+            100% { opacity: 0; }
+        }
+
+        /* --- NUEVO: Estilos para la animación de aparición de avatares --- */
+        .player-avatar-img.fade-in {
+            opacity: 0;
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* --- NUEVO: Estilos para el icono de la bola entronerada en el contenedor del jugador --- */
+        .player-ball-icon {
+            width: 2.5vw; /* Tamaño responsivo aún más pequeño para las bolas */
+            height: 2.5vw; 
+            border-radius: 50%;
+            flex-shrink: 0; /* No permitir que el icono se encoja */
+            background-size: 115%;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        .pocketed-ball-placeholder {
+            width: 2.5vw; /* Tamaño responsivo aún más pequeño para el placeholder */
+            height: 2.5vw; 
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 1px dashed #fff;
+            flex-shrink: 0; /* Asegura que no se encoja y mantenga su forma circular */
+        }
+
+        .player-name {
+            font-size: 1.2vw; /* Tamaño de fuente responsivo aún más pequeño para el nombre */
+            font-weight: bold;
+            color: white;
+            text-align: center;
+            margin-right: 0.5vw; /* Espacio responsivo más pequeño */
+            white-space: nowrap; /* Evita que el texto se envuelva */
+            overflow: hidden; /* Oculta el texto que se desborda */
+            text-overflow: ellipsis; /* Muestra puntos suspensivos para el texto desbordado */
+            flex-shrink: 1; /* Permite que el nombre se encoja */
+        }
+
+        #top-ui-container {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 2vw; /* Espacio entre los contenedores de los jugadores */
+            z-index: 10;
+            padding: 1vh 0;
+            min-height: 10vh; /* Altura mínima para asegurar que el contenido quepa */
+            box-sizing: border-box;
+        }
+
+        #player1PocketedContainer.editable-ui {
+            /* position: absolute; */ /* Eliminado */
+            /* top: 2vh; */ /* Eliminado */
+            /* left: 2vw; */ /* Eliminado */
+            bottom: auto;
+            pointer-events: auto;
+            transform: scaleX(-1); /* Voltear horizontalmente el contenedor completo */
+        }
+        #player1PocketedContainer.editable-ui > .player-name,
+        #player1PocketedContainer.editable-ui > .pocketed-ball-placeholder,
+        #player1PocketedContainer.editable-ui > .player-ball-icon {
+            transform: scaleX(-1); /* Contrarrestar el volteo para el texto, avatar y bolas */
+        }
+        #player2PocketedContainer.editable-ui {
+            /* position: absolute; */ /* Eliminado */
+            /* top: 2vh; */ /* Eliminado */
+            /* right: 2vw; */ /* Eliminado */
+            bottom: auto; /* Eliminar posición inferior */
+            pointer-events: auto; 
+        }
+        /* --- NUEVO: Estilos para la miniatura del selector de efecto --- */
+        #miniSpinSelector {
+            width: 10vh; /* Tamaño relativo a la altura de la pantalla */
+            height: 10vh; 
+            position: absolute; /* --- CORRECCIÓN: Posicionamiento absoluto para ser editable --- */
+            cursor: pointer;
+            /* --- MODIFICACIÓN: Usar una imagen para la miniatura del efecto --- */
+            background-image: url('imajenes/BolasMetidas/efecto.png');
+            background-size: contain; /* Asegura que toda la bola sea visible */
+            background-position: center;
+            background-repeat: no-repeat;
+            border-radius: 50%;
+            pointer-events: auto; /* Permitir clics en este elemento */
+            /* --- NUEVO: Posición por defecto --- */
+            top: 2vh;
+            right: 2vw;
+            z-index: 11; /* --- NUEVO: Para que esté por encima de los marcadores de jugador --- */
+        }
+
+        /* --- NUEVO: Animación de pulso para los indicadores --- */
+        @keyframes fade-pulse {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
+        }
+
+        /* --- NUEVO: Estilos para el indicador de mover sobre la sombra --- */
+        #move-indicator {
+            position: absolute;
+            width: 80px; /* Un poco más grande para que se vea bien sobre la sombra */
+            height: 80px;
+            background-image: url('imajenes/mover.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+            pointer-events: none;
+            z-index: 29; /* Debajo del indicador de la mano */
+            display: none;
+            transform: translate(-50%, -50%); /* Centrar sobre la posición de la sombra */
+            opacity: 0; /* Inicia invisible */
+        }
+
+        /* --- NUEVO: Estilos para el indicador de mano para mover la bola --- */
+        #hand-indicator {
+            position: absolute;
+            width: 64px; /* Tamaño del icono de la mano */
+            height: 64px;
+            background-image: url('imajenes/mano.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+            pointer-events: none; /* Para que no interfiera con los clics */
+            z-index: 30;
+            display: none; /* Oculto por defecto */
+            transform: translate(-50%, -100%); /* Centrar horizontalmente y colocar la punta del dedo encima */
+        }
+        /* --- SOLUCIÓN: Estilos para el nuevo indicador de turno --- */
+        #turnIndicator {
+            position: absolute;
+            top: 25%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(44, 62, 80, 0.85);
+            color: white;
+            padding: 12px 25px;
+            border-radius: 10px;
+            border: 2px solid #3498db;
+            font-family: Arial, sans-serif;
+            font-size: 22px;
+            font-weight: bold;
+            z-index: 20;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+            pointer-events: none; /* Para que no interfiera con el ratón */
+        }
+
+        /* --- NUEVO: Estilos para los sliders en el panel de opciones --- */
+        #options-panel h3 {
+            margin-top: 0;
+            color: #3498db;
+            font-size: 1.8vw; /* Responsive font size */
+            margin-bottom: 1.5vh;
+        }
+        #options-panel label {
+            display: block;
+            margin-top: 2vh;
+            margin-bottom: 0.5vh;
+            font-size: 1.2vw;
+        }
+        #options-panel input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 0.8vh; /* Responsive height */
+            background: #555;
+            border-radius: 5px;
+            outline: none;
+        }
+        #options-panel input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 2vw; /* Responsive width */
+            height: 2vw; /* Responsive height */
+            background: #3498db;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        /* --- NUEVO: Estilo para los botones dentro del panel de opciones --- */
+        #options-panel button {
+            width: 100%;
+            padding: 1vh 0.5vw;
+            margin-top: 1.5vh;
+            background-color: #3498db;
+            border: 1px solid #2980b9;
+            border-radius: 5px;
+            color: white;
+            font-size: 1.5vw;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #options-panel button:hover {
+            background-color: #4aa3df;
+        }
+
+        /* --- NUEVO: Estilos para el panel de opciones deslizable --- */
+        #options-panel {
+            position: fixed;
+            top: 0; /* Pegado a la parte superior */
+            left: 0; /* Pegado a la izquierda */
+            width: 30vw; /* Ancho responsivo para el panel */
+            max-width: 90vw; /* Ancho máximo en pantallas pequeñas */
+            max-height: 80vh; /* --- CORRECCIÓN: Altura máxima para evitar que se salga de la pantalla --- */
+            overflow-y: auto; /* --- NUEVO: Añadir scroll si el contenido es más alto --- */
+            height: auto; /* La altura se ajusta al contenido */
+            background-color: rgba(13, 32, 59, 0.95); /* Mismo color de fondo que el body */
+            border-bottom: 2px solid #3498db;
+            border-right: 2px solid #3498db; /* Borde derecho */
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            transform: translateY(-100%); /* Inicia oculto arriba */
+            transition: transform 0.3s ease-in-out;
+            z-index: 200;
+            padding: 2vh 1vw 1vw 1vw; /* Padding responsivo */
+            box-sizing: border-box; /* --- CORRECCIÓN: Asegurar que el padding no aumente el tamaño total --- */
+            color: white;
+            font-family: Arial, sans-serif;
+            border-bottom-right-radius: 10px;
+        }
+        #options-panel.open {
+            transform: translateY(0); /* Muestra el panel */
+        }
+        #options-toggle-btn {
+            position: fixed;
+            top: 0;
+            left: 0; /* Pegado a la izquierda */
+            transform: none; /* Sin transformación inicial */
+            width: 5vw; /* Responsive width */
+            height: 5vh; /* Responsive height */
+            background-color: #3498db;
+            border: none;
+            border-bottom-right-radius: 10px;
+            cursor: pointer;
+            z-index: 201; /* Por encima del panel cuando está cerrado */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5vw; /* Responsive padding */
+            transition: transform 0.3s ease-in-out;
+        }
+        #options-toggle-btn span {
+            color: white;
+            font-size: 2.5vw; /* Responsive font size */
+        }
+
+        @keyframes fall-from-top {
+            0% {
+                transform: translate(-50%, -200%);
+                opacity: 0;
+            }
+            100% {
+                transform: translate(-50%, -50%);
+                opacity: 1;
+            }
+        }
+
+        #foulMessage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -200%);
+            background-color: rgba(231, 76, 60, 0.9);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: 1px solid #c0392b;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 21;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+        }
+
+        #foulMessage.show {
+            animation: fall-from-top 0.5s ease-in-out forwards;
+        }
+        /* --- SOLUCIÓN: Botón dentro del mensaje de falta/victoria --- */
+        #foulMessage button {
+            display: none; /* Oculto por defecto */
+            margin-top: 15px;
+            pointer-events: auto; /* Reactivar puntero para el botón */
+        }
+
+        /* --- MODIFICACIÓN: Wrapper principal para posicionar todo --- */
+        #powerBarWrapper {
+            position: absolute;
+            top: 50%;
+            left: 2vw;
+            transform: translateY(-50%);
+            z-index: 10;
+        }
+
+        /* --- NUEVO: Contenedor de recorte (Clipping Mask) --- */
+        #powerBarClippingContainer {
+            position: relative; /* Necesario para que los elementos absolutos internos se posicionen correctamente */
+            width: 6vw; /* Mismo ancho que la barra */
+            height: 40vh; /* Misma altura que la barra */
+            overflow: hidden; /* ¡La magia está aquí! Oculta todo lo que se salga. */
+        }
+
+        #newPowerBarContainer {
+            width: 6vw; /* Ancho de la barra */
+            height: 40vh; /* Altura total de la barra */
+            /* --- NUEVO: Degradado de fondo con líneas --- */
+            background: 
+                /* Capa 2: Líneas horizontales repetidas */
+                repeating-linear-gradient(
+                    to top,
+                    transparent, transparent 19px, /* 19px de espacio transparente */
+                    rgba(0, 0, 0, 0.3) 19px, rgba(0, 0, 0, 0.3) 20px /* 1px de línea oscura */
+                ),
+                /* Capa 1: Degradado de color de fondo */
+                linear-gradient(to top, #2ecc71, #f1c40f, #e74c3c); /* Verde -> Amarillo -> Rojo */
+
+            border: 2px solid #333;
+            position: absolute; /* Se posiciona dentro del contenedor de recorte */
+        }
+
+        #newPowerBarHandle {
+            width: 35vh; /* Altura visual del taco (después de rotar) */
+            height: 4vw; /* Ancho visual del taco (después de rotar) */
+            object-fit: contain;
+            position: absolute;
+            left: 50%;
+            left: 60%; /* --- MODIFICADO: Mover un poco más a la derecha --- */
+            transform: translateX(-50%) rotate(270deg);
+            top: 0; /* La posición 'top' será controlada por JS */
+            transform-origin: center center; /* Asegurar que la rotación sea desde el centro */
+            cursor: grab;
+        }
+
+        /* --- NUEVO: Estilos para modales personalizados --- */
+        .custom-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1000; /* Muy alto para estar por encima de todo */
+            display: none; /* Oculto por defecto */
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+            font-family: Arial, sans-serif;
+        }
+        .custom-modal-overlay.visible {
+            display: flex;
+            opacity: 1;
+        }
+        .custom-modal-box {
+            background-color: #1a2b42;
+            padding: 20px 25px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 450px;
+            border: 2px solid #3498db;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            color: white;
+            text-align: center;
+        }
+        .custom-modal-box h3 {
+            margin-top: 0;
+            color: #3498db;
+        }
+        .custom-modal-buttons {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 25px;
+        }
+        .custom-modal-buttons button {
+            padding: 10px 25px;
+        }
+
+
+        /* --- SOLUCIÓN: Estilos para el modal de error --- */
+        #error-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            z-index: 9999; /* Por encima de todo */
+            display: none; /* Oculto por defecto */
+            justify-content: center;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            color: white;
+        }
+        #error-modal {
+            background-color: #2c3e50;
+            padding: 25px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 700px;
+            border: 2px solid #e74c3c;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #error-modal h2 {
+            color: #e74c3c;
+            margin-top: 0;
+        }
+        #error-details {
+            background-color: rgba(0, 0, 0, 0.3);
+            border: 1px solid #444;
+            padding: 10px;
+            border-radius: 5px;
+            white-space: pre-wrap; /* Para que el texto se ajuste */
+            word-break: break-all; /* Para romper palabras largas si es necesario */
+            overflow-y: auto; /* Scroll si el error es muy largo */
+            flex-grow: 1;
+            margin-bottom: 15px;
+        }
+
+        @media (max-width: 700px) {
+            .pocketed-balls-container {
+                align-items: center;
+                gap: 1vw;
+            }
+            .player-avatar-wrapper {
+                margin-right: 0;
+            }
+        }
+
+        /* --- NUEVO: Estilos para el botón de chat en el juego --- */
+        #game-chat-button-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100; /* Asegurarse de que esté por encima de otros elementos */
+        }
+
+        .game-chat-button {
+            background-color: transparent; /* Eliminar color de fondo */
+            color: white;
+            border: none;
+            border-radius: 50%; /* Botón redondo */
+            width: 50px;
+            height: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: none; /* Eliminar sombra */
+            transition: background-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .game-chat-button:hover {
+            background-color: rgba(255, 255, 255, 0.1); /* Añadir un ligero hover para interactividad */
+            transform: scale(1.05);
+        }
+
+        .game-chat-button svg {
+            width: 24px;
+            height: 24px;
+            fill: white;
+        }
+        /* --- NUEVO: Estilos para el botón de abandonar sala fuera del panel --- */
+        #leave-game-btn {
+            position: fixed;
+            top: 0;
+            left: 5vw; /* Position it next to the options button */
+            transform: none;
+            width: 5vw;
+            height: 5vh;
+            background-color: #e74c3c; /* Red color for abandon */
+            border: none;
+            border-bottom-right-radius: 10px;
+            border-bottom-left-radius: 10px; /* Add border-bottom-left-radius for consistency */
+            cursor: pointer;
+            z-index: 201;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5vw;
+            transition: background-color 0.2s ease-in-out;
+        }
+        #leave-game-btn:hover {
+            background-color: #c0392b;
+        }
+        #leave-game-btn span {
+            color: white;
+            font-size: 2.5vw;
+        }
+        /* --- NUEVO: Estilos para el modal de chat en el juego (copia de home.html) --- */
+        #game-chat-modal {
+            display: none; /* Oculto por defecto */
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            padding: 20px;
+            background-color: rgba(35, 35, 35, 0.85); /* var(--container-bg-color) */
+            border: 1px solid rgba(255, 255, 255, 0.2); /* var(--border-color) */
+            border-radius: 24px;
+            width: 700px;
+            max-width: 700px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            position: fixed; /* Posicionamiento fijo */
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100; /* Asegurarse de que esté por encima de otros elementos */
+        }
+        #game-chat-modal .chat-header {
+            width: 100%;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        #game-chat-modal .player-info {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: 700;
+            flex-grow: 1;
+            text-align: center;
+        }
+        #game-chat-modal .player-name {
+            color: #00f291; /* var(--primary-color) */
+        }
+        #game-chat-modal .chat-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin: 0 5px;
+            border: 2px solid #00f291; /* var(--primary-color) */
+        }
+        #game-chat-modal .vs-text {
+            color: #ffffff; /* var(--text-color) */
+            font-size: 16px;
+        }
+        #game-chat-modal .chat-messages {
+            width: 100%;
+            height: 150px;
+            overflow-y: auto;
+            padding: 10px;
+            background-color: #2c2c2c; /* var(--input-bg-color) */
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            text-align: left;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        #game-chat-modal .chat-messages::-webkit-scrollbar {
+            display: none;
+        }
+        #game-chat-modal .chat-message {
+            padding: 8px 12px;
+            border-radius: 15px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        #game-chat-modal .chat-message.self {
+            background-color: #00f291; /* var(--primary-color) */
+            color: #000;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+        #game-chat-modal .chat-message.opponent {
+            background-color: #444;
+            color: #ffffff; /* var(--text-color) */
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+        }
+        #game-chat-modal .message-sender {
+            font-weight: bold;
+            margin-right: 5px;
+        }
+        #game-chat-modal .chat-controls-container {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #game-chat-modal .chat-input-area {
+            flex-grow: 1;
+            display: flex;
+            gap: 10px;
+        }
+        #game-chat-modal .chat-input-area input {
+            flex-grow: 1;
+            padding: 10px 15px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background-color: #2c2c2c;
+            color: #ffffff;
+            outline: none;
+        }
+        #game-chat-modal .chat-input-area button {
+            padding: 0; /* Eliminar padding */
+            border-radius: 0; /* Eliminar border-radius */
+            border: none; /* Eliminar borde */
+            background-color: transparent; /* Eliminar color de fondo */
+            color: white; /* Asegurar que el color del SVG sea blanco */
+            font-weight: 700;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: flex; /* Usar flexbox para centrar el SVG */
+            align-items: center;
+            justify-content: center;
+            width: 40px; /* Ajustar ancho para el icono */
+            height: 40px; /* Ajustar alto para el icono */
+        }
+        #game-chat-modal .chat-input-area button:hover {
+            background-color: rgba(255, 255, 255, 0.1); /* Añadir un ligero hover para interactividad */
+        }
+        #game-chat-modal .minimize-chat-btn {
+            background: none;
+            border: none;
+            color: #a0a0a0; /* var(--text-secondary-color) */
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s, color 0.2s, transform 0.3s ease;
+            position: absolute;
+            top: 5px;
+            right: 5px;
+        }
+        #game-chat-modal .minimize-chat-btn:hover {
+            background-color: rgba(255,255,255,0.1);
+            color: #00f291; /* var(--primary-color) */
+        }
+        #game-chat-modal.minimized .chat-messages,
+        #game-chat-modal.minimized .chat-input-area,
+        #game-chat-modal.minimized .player-info {
+            display: none;
+        }
+        #game-chat-modal.minimized {
+            height: 50px;
+            width: 280px;
+            bottom: 20px;
+            right: 20px;
+            left: auto;
+            top: auto;
+            position: fixed;
+            border-radius: 10px 10px 0 0;
+            cursor: pointer;
+            transition: all 0.3s ease-in-out;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.2);
+        }
+        #game-chat-modal.minimized .chat-header {
+            border-bottom: none;
+            padding-bottom: 0;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        #game-chat-modal.minimized .minimize-chat-btn {
+            transform: rotate(180deg);
+            top: 50%;
+            right: 10px;
+            margin-top: -16px;
+        }
+        #game-chat-modal.minimized .chat-header::before {
+            content: "Chat de Partida";
+            color: #ffffff; /* var(--text-color) */
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        /* --- NUEVO: Estilos para el Modal de Fin de Partida --- */
+        #always-visible-modal .modal-box {
+            max-width: 550px;
+            padding: 30px;
+        }
+
+        #always-visible-modal h3 {
+            font-size: 28px;
+            margin-bottom: 25px;
+            color: #3498db;
+            text-shadow: 0 0 10px rgba(52, 152, 219, 0.5);
+        }
+
+        .game-result-players {
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-start;
+            gap: 20px;
+            margin-bottom: 30px;
+            width: 100%;
+        }
+
+        .player-result {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            padding: 15px;
+            border-radius: 15px;
+            background-color: rgba(26, 43, 66, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .player-result.winner {
+            border-color: #3498db;
+            box-shadow: 0 0 20px rgba(52, 152, 219, 0.4);
+        }
+
+        .player-result.loser {
+            border-color: #e74c3c;
+            box-shadow: 0 0 15px rgba(231, 76, 60, 0.3);
+        }
+
+        .result-label {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .player-result.winner .result-label {
+            color: #3498db;
+        }
+
+        .player-result.loser .result-label {
+            color: #e74c3c;
+        }
+
+        .result-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #3498db;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+        }
+
+        .player-result.winner .result-avatar {
+            border-color: #3498db;
+        }
+
+        .player-result.loser .result-avatar {
+            border-color: #e74c3c;
+        }
+
+        .result-username {
+            font-size: 20px;
+            font-weight: bold;
+            color: white;
+            word-break: break-word;
+            text-align: center;
+        }
+
+        .result-amount {
+            font-size: 16px;
+            font-weight: bold;
+            color: #FFD700;
+            margin-top: 5px;
+            word-break: break-word;
+            text-align: center;
+        }
+
+        #close-game-over-modal-btn {
+            margin-top: 20px;
+            padding: 12px 25px;
+            font-size: 18px;
+            background-color: #3498db;
+            color: #000;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.2s;
+        }
+
+        #close-game-over-modal-btn:hover {
+            background-color: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 600px) {
+            .game-result-players {
+                flex-direction: column;
+                align-items: center;
+            }
+            .player-result {
+                width: 80%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- --- NUEVO: Pantalla para pedir al usuario que rote el dispositivo --- -->
+    <div id="rotate-device-overlay">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M16.83 14.56c.39-.39.39-1.02 0-1.41L14.71 11H19c.55 0 1-.45 1-1s-.45-1-1-1h-4.29l2.12-2.12c.39-.39.39-1.02 0-1.41a.996.996 0 0 0-1.41 0l-3.59 3.59c-.39.39-.39 1.02 0 1.41l3.59 3.59c.39.39 1.02.39 1.41 0zM5 3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h7.5c.55 0 1-.45 1-1s-.45-1-1-1H5V5h7.5c.55 0 1-.45 1-1s-.45-1-1-1H5z"/>
+      </svg>
+      <h2>Gira tu dispositivo</h2>
+      <p>Para una mejor experiencia, por favor, usa el modo horizontal.</p>
+    </div>
+
+    <!-- --- NUEVO: Pantalla de carga --- -->
+    <div id="loading-screen">
+        <div id="progress-container">
+            <div id="progress-bar"></div>
+        </div>
+        <div id="progress-text">0%</div>
+    </div>
+
+    <div id="powerBarWrapper" class="editable-ui">
+        <!-- --- NUEVO: Contenedor de recorte que envuelve la barra y el taco --- -->
+        <div id="powerBarClippingContainer">
+            <div id="newPowerBarContainer"></div>
+            <!-- El taco ahora está DENTRO del contenedor de recorte -->
+            <div id="newPowerBarHandle" style="background-image: url('imajenes/taco.png'); background-size: contain; background-repeat: no-repeat; background-position: center;"></div>
+        </div>
+        <div id="powerPercentageDisplay" style="color: white; text-align: center; margin-top: 10px; font-size: 1.5em; font-weight: bold;">0%</div>
+        <!-- --- NUEVO: Agarraderas para edición de UI --- -->
+        <div class="resize-handle tl"></div><div class="resize-handle br"></div>
+    </div>
+
+    <div id="gameContainer">
+
+        <!-- --- NUEVO: Panel de opciones deslizable --- -->
+        <div id="options-panel">
+            <div id="main-options-view">
+                <h3>Opciones</h3>
+                <button id="modify-ui-btn">Modificar UI</button>
+                <button id="abandon-game-btn" class="abandon-button">Abandonar Sala</button>
+            </div>
+            <div id="edit-ui-options-view" style="display: none;">
+                <h3>Ajustar Interfaz</h3>
+                <label for="player-pockets-size">Tamaño Marcadores</label>
+                <input type="range" id="player-pockets-size" min="30" max="100" value="48">
+                <label for="power-bar-size">Ancho Medidor Potencia</label>
+                <input type="range" id="power-bar-size" min="100" max="600" value="400">
+                <label for="power-bar-height">Grosor Medidor Potencia</label>
+                <input type="range" id="power-bar-height" min="10" max="50" value="15">
+                <button id="reset-ui-btn">Restablecer Configuración</button>
+                <button id="exit-edit-mode-btn">Volver</button>
+            </div>
+        </div>
+        <button id="options-toggle-btn"><span>&#9881;</span></button>
+
+
+        <!-- --- NUEVO: Controles para cambiar el tamaño de la mesa --- -->
+
+        <!-- --- NUEVO: Modal para el selector de efecto en grande --- -->
+        <div id="spinModalOverlay">
+            <div id="largeSpinSelector" class="editable-ui">
+                <div id="spinSelectorDot" class="spin-selector-dot"></div>
+            </div>
+        </div>
+
+        <!-- --- NUEVO: Modal de confirmación personalizado --- -->
+        <div id="confirm-reset-modal" class="custom-modal-overlay">
+            <div class="custom-modal-box">
+                <h3>Restablecer Configuración</h3>
+                <p>¿Estás seguro de que quieres restablecer la interfaz a sus valores por defecto? Esta acción no se puede deshacer.</p>
+                <div class="custom-modal-buttons">
+                    <button id="confirm-reset-no" class="modal-btn cancel" style="background-color: #555;">Cancelar</button>
+                    <button id="confirm-reset-yes" class="modal-btn confirm" style="background-color: #c0392b;">Confirmar</button>
+                </div>
+            </div>
+        </div>
+
+        <canvas id="poolCanvas"></canvas>
+
+        <div id="top-ui-container">
+            <!-- Contenedor para las bolas del jugador 1 -->
+            <div id="player1PocketedContainer" class="pocketed-balls-container editable-ui">
+                <div id="player1-name" class="player-name">Jugador 1</div>
+                <div class="player-avatar-wrapper" style="position: relative; width: 3.5vw; height: 3.5vw; min-width: 24px; min-height: 24px; margin-right: 0.5vw;">
+                    <svg id="player1-avatar-svg" class="player-avatar" viewBox="0 0 36 36" style="position: absolute; top: 0; left: 0; z-index: 2;">
+                        <circle class="avatar-icon-bg" cx="18" cy="18" r="15.915" fill="#34495e"></circle>
+                        <circle class="timer-track" cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255, 255, 255, 0.2)" stroke-width="3"></circle>
+                        <circle class="timer-line" cx="18" cy="18" r="15.915" fill="none" stroke-width="3" stroke-dasharray="100, 100"></circle>
+                        <g class="avatar-icon" transform="translate(9, 9) scale(0.75)">
+                            <path d="M12,12.75A5.25,5.25,0,1,0,6.75,7.5,5.256,5.256,0,0,0,12,12.75Zm0-9A3.75,3.75,0,1,1,8.25,7.5,3.754,3.754,0,0,1,12,3.75Z"></path><path d="M12,14.25a8.991,8.991,0,0,0-8.99,9,1.5,1.5,0,0,0,3,0,6,6,0,0,1,12,0,1.5,1.5,0,0,0,3,0,8.991,8.991,0,0,0-8.99-9Z"></path>
+                        </g>
+                    </svg>
+                    <img id="player1-avatar-img" src="" class="player-avatar" style="display: none; position: absolute; top: 0; left: 0; border-radius: 50%; object-fit: cover; width: 100%; height: 100%; z-index: 1;">
+                    <div id="player1-chat-bubble" class="player-chat-bubble"></div>
+                </div>
+                <div class="pocketed-ball-placeholder"></div>
+                <div class="pocketed-ball-placeholder"></div>
+                <div class="pocketed-ball-placeholder"></div>
+                <div class="pocketed-ball-placeholder"></div>
+                <div class="pocketed-ball-placeholder"></div>
+                <div class="pocketed-ball-placeholder"></div>
+                <div class="pocketed-ball-placeholder"></div>
+                <!-- --- NUEVO: Agarraderas para edición de UI --- -->
+                <div class="resize-handle tl"></div><div class="resize-handle br"></div>
+            </div>
+
+            <!-- Contenedor de Ganancias -->
+            <div id="winnings-container" class="editable-ui" style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 8vw; max-width: 90px; background-color: rgba(0,0,0,0.6); border-radius: 8px; padding: 1vw; aspect-ratio: 1 / 1; box-sizing: border-box;">
+                <div id="winnings-image" style="width: 60%; height: 60%; background-image: url('imajenes/moneda/moneda.png'); background-size: contain; background-repeat: no-repeat; background-position: center; border-radius: 5px; margin-bottom: 0.5vw;"></div>
+                <div id="winnings-text" style="color: #FFD700; font-size: 1.2vw; font-weight: bold; text-shadow: 0 0 5px #000;">$0</div>
+            </div>
+
+            <!-- Contenedor para las bolas del jugador 2 -->
+            <div id="player2PocketedContainer" class="pocketed-balls-container editable-ui">
+                <div id="player2-name" class="player-name">Jugador 2</div>
+                <div class="player-avatar-wrapper" style="position: relative; width: 3.5vw; height: 3.5vw; min-width: 24px; min-height: 24px; margin-right: 0.5vw;">
+                    <svg id="player2-avatar-svg" class="player-avatar" viewBox="0 0 36 36" style="position: absolute; top: 0; left: 0; z-index: 2;">
+                        <circle class="avatar-icon-bg" cx="18" cy="18" r="15.915" fill="#34495e"></circle>
+                        <circle class="timer-track" cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255, 255, 255, 0.2)" stroke-width="3"></circle>
+                        <circle class="timer-line" cx="18" cy="18" r="15.915" fill="none" stroke-width="3" stroke-dasharray="100, 100"></circle>
+                        <g class="avatar-icon" transform="translate(9, 9) scale(0.75)">
+                            <path d="M12,12.75A5.25,5.25,0,1,0,6.75,7.5,5.256,5.256,0,0,0,12,12.75Zm0-9A3.75,3.75,0,1,1,8.25,7.5,3.754,3.754,0,0,1,12,3.75Z"></path><path d="M12,14.25a8.991,8.991,0,0,0-8.99,9,1.5,1.5,0,0,0,3,0,6,6,0,0,1,12,0,1.5,1.5,0,0,0,3,0,8.991,8.991,0,0,0-8.99-9Z"></path>
+                        </g>
+                    </svg>
+                    <img id="player2-avatar-img" src="" class="player-avatar" style="display: none; position: absolute; top: 0; left: 0; border-radius: 50%; object-fit: cover; width: 100%; height: 100%; z-index: 1;">
+                    <div id="player2-chat-bubble" class="player-chat-bubble"></div>
+                </div>
+                <div class="pocketed-ball-placeholder"></div>
+                <div class="pocketed-ball-placeholder"></div>
+                <div class="pocketed-ball-placeholder"></div>
+                <div class="pocketed-ball-placeholder"></div>
+                <div class="pocketed-ball-placeholder"></div>
+                <div class="pocketed-ball-placeholder"></div>
+                <div class="pocketed-ball-placeholder"></div>
+                <!-- --- NUEVO: Agarraderas para edición de UI --- -->
+                <div class="resize-handle tl"></div><div class="resize-handle br"></div>
+            </div>
+        </div>
+        <div id="pocketedInfo"></div>
+        <div id="foulMessage">
+            <span id="foulMessageText"></span>
+        </div>
+
+        <!-- --- CORRECCIÓN: Mover el selector de efecto fuera del contenedor flexbox --- -->
+        <div id="miniSpinSelector" class="editable-ui">
+            <div id="miniSpinSelectorDot" class="spin-selector-dot"></div>
+        </div>
+
+        <!-- --- NUEVO: Indicador para mover sobre la sombra de la bola --- -->
+        <div id="move-indicator"></div>
+
+        <!-- --- SOLUCIÓN: Nuevo elemento para el indicador de turno --- -->
+        <div id="turnIndicator"></div>
+
+    </div>
+
+    <!-- --- NUEVO: Modal de Fin de Partida --- -->
+    <div id="always-visible-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>¡Partida Terminada!</h3>
+            <div class="game-result-players">
+                <div class="player-result winner">
+                    <span class="result-label">Ganador</span>
+                    <img id="winner-avatar" src="" alt="Avatar Ganador" class="result-avatar">
+                    <span id="winner-username" class="result-username"></span>
+                    <span id="winner-amount" class="result-amount"></span>
+                </div>
+                <div class="player-result loser">
+                    <span class="result-label">Perdedor</span>
+                    <img id="loser-avatar" src="" alt="Avatar Perdedor" class="result-avatar">
+                    <span id="loser-username" class="result-username"></span>
+                    <span id="loser-amount" class="result-amount"></span>
+                </div>
+            </div>
+            <button id="close-game-over-modal-btn">Cerrar</button>
+            <script>
+                document.getElementById('close-game-over-modal-btn').addEventListener('click', () => {
+                    window.location.href = 'login/home.html';
+                });
+            </script>
+        </div>
+    </div>
+
+    <!-- --- SOLUCIÓN: Modal para mostrar errores --- -->
+    <div id="error-overlay">
+        <div id="error-modal">
+            <h2>¡Oh no! Ocurrió un error inesperado.</h2>
+            <p>Por favor, copia este error y envíalo al desarrollador para ayudar a solucionarlo.</p>
+            <pre id="error-details"></pre>
+            <button id="copy-error-btn" style="padding: 10px; font-size: 16px; cursor: pointer;">Copiar Error</button>
+        </div>
+    </div>
+
+
+    <!-- 
+        1. Import map: Le dice al navegador qué archivo cargar cuando vea "import 'three'".
+    -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+            }
+        }
+    </script>
+    <!-- 2. Cargar pool.js como un módulo para permitir el uso de 'import' -->
+    <!-- <script type="module" src="pool.js"></script> -->
+
+    <!-- --- MODIFICACIÓN PARA PRUEBAS ONLINE --- -->
+    <script type="module">
+        const url = new URL(window.location);
+        if (!url.searchParams.has('gameId')) {
+            window.location.href = 'login/home.html'; // Redirigir a home si no hay gameId
+        }
+
+        // 2. Importar y ejecutar el script principal del juego.
+        // El script 'pool.js' ya contiene la lógica para leer el 'gameId' de la URL e iniciar la conexión.
+        import './pool.js';
+    </script>
+
+    <!-- --- NUEVO: Script para la sincronización en tiempo real del apuntado --- -->
+    <script type="module">
+        // 1. Importar las funciones necesarias de Firestore y la autenticación.
+        import { db, auth, onSnapshot, doc, updateDoc, deleteDoc, getDoc, addDoc, collection } from './login/auth.js';
+        import { arrayUnion } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+
+        // --- NUEVO: Elementos del chat en el juego ---
+        const gameChatModal = document.getElementById('game-chat-modal');
+        const toggleGameChatBtn = document.getElementById('toggle-game-chat-btn');
+        const minimizeGameChatBtn = document.getElementById('minimize-game-chat-btn');
+        const gameChatMessages = document.getElementById('game-chat-messages');
+        const gameChatMessageInput = document.getElementById('game-chat-message-input');
+        const sendGameChatMessageBtn = document.getElementById('send-game-chat-message-btn');
+        const gameChatPlayer1Name = document.getElementById('game-chat-player1-name');
+        const gameChatPlayer2Name = document.getElementById('game-chat-player2-name');
+        const gameChatPlayer1Avatar = document.getElementById('game-chat-player1-avatar');
+        const gameChatPlayer2Avatar = document.getElementById('game-chat-player2-avatar');
+
+        // --- NUEVO: Referencias a las burbujas de chat ---
+        const player1ChatBubble = document.getElementById('player1-chat-bubble');
+        const player2ChatBubble = document.getElementById('player2-chat-bubble');
+
+        // --- NUEVO: Contador para mensajes mostrados en burbujas ---
+        let lastDisplayedMessageCount = 0;
+
+        // --- NUEVO: Objeto de audio para el sonido de mensaje ---
+        const messageSound = new Audio('login/audio/mensaje.mp3');
+        messageSound.volume = 0.5; // Ajusta el volumen si es necesario
+
+        // --- NUEVO: Función para mostrar la burbuja de chat ---
+        function displayChatBubble(messageText, bubbleElement) {
+            bubbleElement.textContent = messageText;
+            bubbleElement.classList.add('show');
+            bubbleElement.classList.remove('fade-out'); // Reiniciar animación si ya estaba activa
+
+            // Iniciar la animación de desvanecimiento después de un breve retraso
+            setTimeout(() => {
+                bubbleElement.classList.add('fade-out');
+                // Ocultar completamente después de la animación
+                setTimeout(() => {
+                    bubbleElement.classList.remove('show');
+                    bubbleElement.textContent = '';
+                }, 15000); // Duración de la animación fadeOutBubble aumentada a 15s
+            }, 100); // Pequeño retraso para asegurar que la clase 'show' se aplique primero
+        }
+
+        // --- NUEVO: Funciones de utilidad para el chat (simplificadas de home-ecensiales/utils.js) ---
+        function renderMessages(messages, container, currentUserUid) {
+            const previousMessageCount = container.children.length; // Obtener el número de mensajes actuales
+            container.innerHTML = '';
+            if (messages && messages.length > 0) {
+                messages.forEach(msg => {
+                    const messageElement = document.createElement('div');
+                    messageElement.classList.add('chat-message');
+                    messageElement.classList.add(msg.uid === currentUserUid ? 'self' : 'opponent');
+                    messageElement.innerHTML = `<span class="message-sender">${msg.username}:</span> ${msg.text}`;
+                    container.appendChild(messageElement);
+                });
+                container.scrollTop = container.scrollHeight; // Scroll to bottom
+
+                // Reproducir sonido si hay un nuevo mensaje y no es del usuario actual
+                const lastMessage = messages[messages.length - 1];
+                if (messages.length > previousMessageCount && lastMessage.uid !== currentUserUid) {
+                    messageSound.play().catch(e => console.error("Error al reproducir sonido de mensaje:", e));
+                }
+            }
+        }
+
+        function setPlayerAvatar(imgElement, profileImageName) {
+            if (profileImageName) {
+                imgElement.src = `imajenes/perfil/${profileImageName}`;
+                imgElement.style.display = 'block';
+            } else {
+                imgElement.style.display = 'none'; // Hide if no image
+            }
+        }
+
+        // --- NUEVO: Lógica para mostrar/ocultar el chat ---
+        toggleGameChatBtn.addEventListener('click', () => {
+            gameChatModal.style.display = gameChatModal.style.display === 'flex' ? 'none' : 'flex';
+            if (gameChatModal.style.display === 'flex') {
+                gameChatMessages.scrollTop = gameChatMessages.scrollHeight; // Scroll to bottom when opened
+            }
+        });
+
+        // --- NUEVO: Lógica para cerrar el chat ---
+        minimizeGameChatBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Evitar que el clic se propague al modal y lo abra
+            gameChatModal.style.display = 'none'; // Ocultar completamente el modal
+        });
+
+        gameChatModal.addEventListener('click', (e) => {
+            if (gameChatModal.classList.contains('minimized')) {
+                gameChatModal.classList.remove('minimized');
+            }
+        });
+
+        // --- NUEVO: Función para enviar mensajes en el juego ---
+        const sendGameMessage = async () => {
+            const messageText = gameChatMessageInput.value.trim();
+            const currentUser = auth.currentUser; // Get current user from Firebase auth
+            if (messageText && gameId && currentUser) {
+                const gameRef = doc(db, "games", gameId);
+                // Fetch current user's profile to get username and avatar
+                const userProfileSnap = await getDoc(doc(db, "saldo", currentUser.uid));
+                const currentUserProfile = userProfileSnap.exists() ? userProfileSnap.data() : { username: 'Anónimo' };
+
+                const message = {
+                    uid: currentUser.uid,
+                    username: currentUserProfile.username,
+                    text: messageText,
+                    timestamp: Date.now()
+                };
+
+                await updateDoc(gameRef, {
+                    messages: arrayUnion(message)
+                });
+
+                // --- NUEVO: Determinar qué burbuja de chat usar para el jugador actual ---
+                const gameSnap = await getDoc(gameRef);
+                if (gameSnap.exists()) {
+                    const gameData = gameSnap.data();
+                    if (gameData.player1 && gameData.player1.uid === currentUser.uid) {
+                        displayChatBubble(messageText, player1ChatBubble);
+                    } else if (gameData.player2 && gameData.player2.uid === currentUser.uid) {
+                        displayChatBubble(messageText, player2ChatBubble);
+                    }
+                }
+
+                gameChatMessageInput.value = '';
+            }
+        };
+
+        sendGameChatMessageBtn.addEventListener('click', sendGameMessage);
+        gameChatMessageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendGameMessage();
+            }
+        });
+
+                    // 2. Obtener el ID de la partida desde la URL.
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const gameId = urlParams.get('gameId');
+                    const winningsText = document.getElementById('winnings-text');
+                    let isGameActive = true; // --- NUEVO: Bandera para controlar si el juego está activo
+
+                    // --- NUEVO: Función para manejar el abandono de la sala ---
+                    async function handleAbandonGame() {
+                        const currentGameId = new URLSearchParams(window.location.search).get('gameId');
+                        if (!currentGameId) {
+                            alert('No se encontró el ID de la partida.');
+                            return;
+                        }
+                        if (confirm('¿Estás seguro de que quieres abandonar la sala? El otro jugador ganará la partida.')) {
+                            try {
+                                const gameRef = doc(db, "games", currentGameId);
+                                const gameSnap = await getDoc(gameRef);
+
+                                if (gameSnap.exists()) {
+                                    const gameData = gameSnap.data();
+                                    const currentUserUid = auth.currentUser.uid;
+                                    let winnerUid = null;
+                                    let loserUid = currentUserUid;
+
+                                    if (gameData.player1 && gameData.player1.uid === currentUserUid) {
+                                        winnerUid = gameData.player2 ? gameData.player2.uid : null;
+                                    } else if (gameData.player2 && gameData.player2.uid === currentUserUid) {
+                                        winnerUid = gameData.player1 ? gameData.player1.uid : null;
+                                    }
+
+                                    if (winnerUid) {
+                                        // --- INICIO DE LA MODIFICACIÓN ---
+                                        const betAmount = gameData.betAmount || 0;
+                                        const totalWinnings = betAmount * 2;
+
+                                        // --- CORRECCIÓN: Obtener la información del perdedor (el usuario actual) correctamente ---
+                                        const winnerPlayerInfo = gameData.player1.uid === winnerUid ? gameData.player1 : gameData.player2;
+                                        const loserPlayerInfo = gameData.player1.uid === loserUid ? gameData.player1 : (gameData.player2.uid === loserUid ? gameData.player2 : null);
+
+                                        const winnerUsername = winnerPlayerInfo?.username || 'Ganador';
+                                        const loserUsername = loserPlayerInfo.username;
+                                        const winnerAvatar = `../imajenes/perfil/${winnerPlayerInfo.profileImageName}`;
+                                        const loserAvatar = `../imajenes/perfil/${loserPlayerInfo.profileImageName}`;
+
+                                        // --- CORRECCIÓN: Guardar en localStorage ANTES de actualizar la base de datos ---
+                                        // Esto asegura que los datos se guarden antes de que la página se redirija.
+                                        const actualWinnerAmount = betAmount === 0 ? 1000 : totalWinnings; // No house rake
+                                        localStorage.setItem('gameEnded', 'true');
+                                        localStorage.setItem('winnerUsername', winnerUsername);
+                                        localStorage.setItem('loserUsername', loserUsername);
+                                        localStorage.setItem('winnerAvatar', winnerAvatar);
+                                        localStorage.setItem('loserAvatar', loserAvatar);
+                                        localStorage.setItem('winnerAmount', actualWinnerAmount.toString());
+                                        localStorage.setItem('loserAmount', betAmount.toString());
+
+                                        // --- NUEVO: Verificar que los datos se guardaron antes de continuar ---
+                                        if (localStorage.getItem('gameEnded') === 'true') {
+                                            console.log('Verificación exitosa: Los datos se guardaron en localStorage.');
+                                            await updateDoc(gameRef, {
+                                                juegoTerminado: true,
+                                                winner: winnerUid,
+                                                loser: currentUserUid,
+                                            });
+                                            // Save game history
+                                            await addDoc(collection(db, "gameHistory"), {
+                                                winnerUid: winnerUid,
+                                                loserUid: currentUserUid,
+                                                amountWon: actualWinnerAmount,
+                                                amountLost: betAmount,
+                                                date: Date.now(),
+                                                gameId: currentGameId
+                                            });
+                                            // Redirigir inmediatamente ya que el usuario es el perdedor
+                                            window.location.href = 'login/home.html';
+                                        } else {
+                                            console.error('Error crítico: No se pudieron guardar los datos en localStorage.');
+                                            alert('Hubo un error al guardar el resultado de la partida. Por favor, inténtalo de nuevo.');
+                                        }
+                                    } else {
+                                        await deleteDoc(gameRef);
+                                        alert('Has abandonado la sala. No se pudo determinar un ganador, la sala ha sido eliminada. Serás redirigido a la página principal.');
+                                        window.parent.location.href = 'login/home.html';
+                                    }
+                                } else {
+                                    alert('La sala ya no existe. Serás redirigido a la página principal.');
+                                    window.parent.location.href = 'login/home.html';
+                                }
+                            } catch (error) {
+                                console.error("Error al abandonar la sala:", error);
+                                alert('Hubo un error al intentar abandonar la sala. Por favor, inténtalo de nuevo.');
+                            }
+                        }
+                    }
+
+                    // --- CORRECCIÓN: Envolver la lógica en un 'if' para evitar el 'Illegal return statement' ---
+                    if (!gameId) {
+                        console.error("No se encontró gameId en la URL. La sincronización no funcionará.");
+                        isGameActive = false; // Si no hay gameId, el juego no está activo
+                    } else {
+                        // --- NUEVO: Escuchar cambios en el documento del juego para actualizar las ganancias ---
+                        const unsubscribe = onSnapshot(doc(db, "games", gameId), (docSnap) => {
+                            if (docSnap.exists()) {
+                                const gameData = docSnap.data();
+                                const betAmount = gameData.betAmount || 0;
+                                const totalWinnings = betAmount * 2; // Apuesta de ambos jugadores
+                                const actualWinnings = betAmount === 0 ? 1000 : totalWinnings; // No house rake
+                                winningsText.textContent = `$${actualWinnings.toLocaleString()}`;
+
+                                // --- NUEVO: Actualizar información de los jugadores en el chat ---
+                                const currentUserUid = auth.currentUser.uid;
+                                let currentPlayerIsPlayer1 = false;
+                                let currentPlayerIsPlayer2 = false;
+
+                                if (gameData.player1 && gameData.player1.uid === currentUserUid) {
+                                    currentPlayerIsPlayer1 = true;
+                                } else if (gameData.player2 && gameData.player2.uid === currentUserUid) {
+                                    currentPlayerIsPlayer2 = true;
+                                }
+
+                                if (gameData.player1) {
+                                    gameChatPlayer1Name.textContent = gameData.player1.username;
+                                    setPlayerAvatar(gameChatPlayer1Avatar, gameData.player1.profileImageName);
+                                }
+                                if (gameData.player2) {
+                                    gameChatPlayer2Name.textContent = gameData.player2.username;
+                                    setPlayerAvatar(gameChatPlayer2Avatar, gameData.player2.profileImageName);
+                                }
+
+                                // --- NUEVO: Renderizar mensajes del chat ---
+                                renderMessages(gameData.messages, gameChatMessages, currentUserUid);
+
+                                // --- NUEVO: Mostrar burbujas de chat solo para mensajes nuevos ---
+                                if (gameData.messages && gameData.messages.length > lastDisplayedMessageCount) {
+                                    const lastMessage = gameData.messages[gameData.messages.length - 1];
+                                    if (lastMessage.uid !== currentUserUid) {
+                                        // Es un mensaje del oponente
+                                        if (gameData.player1 && gameData.player1.uid === lastMessage.uid) {
+                                            displayChatBubble(lastMessage.text, player1ChatBubble);
+                                        } else if (gameData.player2 && gameData.player2.uid === lastMessage.uid) {
+                                            displayChatBubble(lastMessage.text, player2ChatBubble);
+                                        }
+                                    } else {
+                                        // Mensaje propio
+                                        if (currentPlayerIsPlayer1) {
+                                            displayChatBubble(lastMessage.text, player1ChatBubble);
+                                        } else if (currentPlayerIsPlayer2) {
+                                            displayChatBubble(lastMessage.text, player2ChatBubble);
+                                        }
+                                    }
+                                    lastDisplayedMessageCount = gameData.messages.length; // Actualizar contador
+                                }
+
+                                // --- NUEVO: Redirigir a home.html si el juego ha terminado ---
+                                if (gameData.juegoTerminado) {
+                                    const winnerUid = gameData.winner;
+                                    const loserUid = gameData.loser;
+
+                                    const winnerUsername = gameData.player1.uid === winnerUid ? gameData.player1.username : gameData.player2.username;
+                                    const loserUsername = gameData.player1.uid === loserUid ? gameData.player1.username : gameData.player2.username;
+
+                                    const winnerAvatar = `../imajenes/perfil/${gameData.player1.uid === winnerUid ? gameData.player1.profileImageName : gameData.player2.profileImageName}`;
+                                    const loserAvatar = `../imajenes/perfil/${gameData.player1.uid === loserUid ? gameData.player1.profileImageName : gameData.player2.profileImageName}`;
+
+                                    localStorage.setItem('gameEnded', 'true');
+                                    localStorage.setItem('winnerUid', winnerUid);
+                                    localStorage.setItem('loserUid', loserUid);
+                                    localStorage.setItem('winnerUsername', winnerUsername);
+                                    localStorage.setItem('loserUsername', loserUsername);
+                                    localStorage.setItem('winnerAvatar', winnerAvatar);
+                                    localStorage.setItem('loserAvatar', loserAvatar);
+                                    localStorage.setItem('winnerAmount', totalWinnings); // Asumiendo que totalWinnings es la cantidad ganada
+                                    localStorage.setItem('loserAmount', betAmount); // Asumiendo que betAmount es la cantidad perdida
+
+                                    // Si el usuario actual es el perdedor (el que abandonó), redirigir directamente a home
+                                    if (currentUserUid === loserUid) {
+                                        window.location.href = 'login/home.html';
+                                    } else {
+                                        // Mostrar el modal de fin de partida para el ganador
+                                        showGameOverModal(gameData);
+                                    }
+                                    isGameActive = false; // El juego ha terminado
+                                    unsubscribe(); // Unsubscribe from further updates
+                                    return; // Detener el procesamiento posterior
+                                }
+
+                            } else {
+                                console.log("El documento del juego no existe.");
+                                winningsText.textContent = '$0'; // Resetear si el juego no existe
+                                window.location.href = 'login/home.html'; // Redirigir a home si el juego no existe
+                                isGameActive = false; // El juego ya no está activo
+                                unsubscribe(); // Unsubscribe from further updates
+                            }
+                        });
+
+
+                        // --- NUEVO: Lógica para el botón "Abandonar Sala" (dentro del panel de opciones) ---
+                        const abandonGameBtn = document.getElementById('abandon-game-btn');
+                        if (abandonGameBtn) {
+                            abandonGameBtn.addEventListener('click', handleAbandonGame);
+                        }
+
+                        // --- NUEVO: Lógica para el nuevo botón "Abandonar Sala" (fuera del panel) ---
+                        const leaveGameBtn = document.getElementById('leave-game-btn');
+                        if (leaveGameBtn) {
+                            leaveGameBtn.addEventListener('click', handleAbandonGame);
+                        }
+
+            // 3. Función "throttle" para no sobrecargar Firestore.
+            // Limita las actualizaciones a una cada 50ms como máximo.
+            function throttle(func, limit) {
+                let inThrottle;
+                return function(...args) {
+                    if (!inThrottle) {
+                        func.apply(this, args);
+                        inThrottle = true;
+                        setTimeout(() => inThrottle = false, limit);
+                    }
+                }
+            }
+
+            // 4. Función para enviar la actualización del ángulo a Firestore.
+            const sendAimUpdate = throttle(async (angle) => {
+                if (!isGameActive || !gameId) return; // --- NUEVO: No enviar actualizaciones si el juego no está activo
+                if (gameId) {
+                    try {
+                        const gameRef = doc(db, "games", gameId);
+                        await updateDoc(gameRef, { aimingAngle: angle });
+                    } catch (error) {
+                        console.error("Error al sincronizar el apuntado:", error);
+                    }
+                }
+            }, 500); // Límite de 500ms.
+
+            // --- NUEVO: Función para enviar la actualización de la potencia a Firestore ---
+            const sendPowerUpdate = throttle(async (power) => {
+                if (!isGameActive || !gameId) return; // --- NUEVO: No enviar actualizaciones si el juego no está activo
+                if (gameId) {
+                    try {
+                        const gameRef = doc(db, "games", gameId);
+                        // Usamos un nuevo campo \'aimingPower\' para la potencia
+                        await updateDoc(gameRef, { aimingPower: power });
+                    } catch (error) {
+                        console.error("Error al sincronizar la potencia:", error);
+                    }
+                }
+            }, 500); // Mismo límite para la potencia
+
+            let lastSentCueBallPosition = null; // Variable para almacenar la última posición enviada
+
+            // --- NUEVO: Función para enviar la posición de la bola blanca durante "bola en mano" ---
+            const sendCueBallPositionUpdate = throttle(async (position) => {
+                if (!isGameActive || !gameId) return; // --- NUEVO: No enviar actualizaciones si el juego no está activo
+                // Convertir el objeto de posición a una cadena para una comparación sencilla
+                const currentPositionString = JSON.stringify(position);
+                const lastPositionString = JSON.stringify(lastSentCueBallPosition);
+
+                // Solo enviar la actualización si la posición ha cambiado
+                if (currentPositionString !== lastPositionString) {
+                    if (gameId) {
+                        try {
+                            const gameRef = doc(db, "games", gameId);
+                            await updateDoc(gameRef, { cueBallPosition: position });
+                            lastSentCueBallPosition = position; // Actualizar la última posición enviada
+                        } catch (error) {
+                            console.error("Error al sincronizar la posición de la bola blanca:", error);
+                        }
+                    }
+                }
+            }, 1000); // Límite de 1000ms.
+
+
+
+            // --- NUEVO: Función para enviar el estado de visibilidad del modal de efecto ---
+            const sendSpinModalUpdate = async (isVisible) => {
+                if (!isGameActive || !gameId) return; // --- NUEVO: No enviar actualizaciones si el juego no está activo
+                if (gameId) {
+                    try {
+                        const gameRef = doc(db, "games", gameId);
+                        // Usamos un nuevo campo 'isSpinModalOpen'
+                        await updateDoc(gameRef, { isSpinModalOpen: isVisible });
+                    } catch (error) {
+                        console.error("Error al sincronizar el modal de efecto:", error);
+                    }
+                }
+            };
+
+
+            // 5. Crear un evento personalizado para que pool.js pueda enviar el ángulo.
+            // El script pool.js deberá disparar este evento cuando el jugador apunte.
+            // Ejemplo en pool.js: window.dispatchEvent(new CustomEvent('sendaim', { detail: { angle: currentAngle } }));
+            window.addEventListener('sendaim', (event) => {
+                if (event.detail && typeof event.detail.angle !== 'undefined') {
+                    sendAimUpdate(event.detail.angle);
+                }
+            });
+
+            // --- NUEVO: Listener para el evento de potencia ---
+            window.addEventListener('sendpower', (event) => {
+                if (event.detail && typeof event.detail.power !== 'undefined') {
+                    sendPowerUpdate(Number(event.detail.power));
+                }
+            });
+
+
+
+            // --- NUEVO: Listener para el evento de visibilidad del modal de efecto ---
+            window.addEventListener('setspinmodal', (event) => {
+                if (event.detail && typeof event.detail.visible !== 'undefined') {
+                    sendSpinModalUpdate(event.detail.visible);
+                }
+            });
+
+            // --- NUEVO: Listener para el evento de mover la bola blanca ---
+            window.addEventListener('sendcueballmove', (event) => {
+                if (event.detail && event.detail.position) {
+                    sendCueBallPositionUpdate(event.detail.position);
+                }
+            });
+
+            // --- NUEVO: Listener para limpiar la posición de la bola blanca en el servidor ---
+            window.addEventListener('clearcueballpositionrequest', async () => {
+                if (!isGameActive || !gameId) return; // --- NUEVO: No enviar actualizaciones si el juego no está activo
+                if (gameId) {
+                    try {
+                        const gameRef = doc(db, "games", gameId);
+                        await updateDoc(gameRef, { cueBallPosition: null });
+                    } catch (error) {
+                        console.error("Error al limpiar la posición de la bola blanca:", error);
+                    }
+                }
+            });
+
+
+
+            // --- NUEVO: Listener para enviar los datos del tiro al servidor ---
+            window.addEventListener('sendShot', async (event) => {
+                if (!isGameActive || !gameId) return; // --- NUEVO: No enviar actualizaciones si el juego no está activo
+                if (gameId && event.detail && auth.currentUser) {
+                    const { gameState, ...shotData } = event.detail;
+                    const gameRef = doc(db, "games", gameId);
+                    try {
+                        // --- NUEVO: Resetear el spin en la UI antes de disparar ---
+                        window.dispatchEvent(new CustomEvent('resetspin'));
+                        await updateDoc(gameRef, {
+                            lastShot: {
+                                playerUid: auth.currentUser.uid,
+                                ...shotData,
+                                timestamp: Date.now()
+                            },
+                            // Limpiar estados de apuntado en el servidor
+                            ballInHandFor: null, 
+                            cueBallPosition: null,
+                            aimingSpin: { x: 0, y: 0 }, isSpinModalOpen: false
+                        });
+                    } catch (error) {
+                        console.error("Error al enviar los datos del tiro:", error);
+                    }
+                }
+            });
+
+
+        }
+    </script>
+
+    <!-- --- SOLUCIÓN: Script para capturar errores globales --- -->
+    <script>
+        let hasReloaded = false;
+
+        const errorOverlay = document.getElementById('error-overlay');
+        const errorDetails = document.getElementById('error-details');
+        const copyErrorBtn = document.getElementById('copy-error-btn');
+
+        function showErrorModal(errorInfo) {
+            errorDetails.textContent = errorInfo;
+            errorOverlay.style.display = 'flex';
+        }
+
+        copyErrorBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(errorDetails.textContent).then(() => {
+                copyErrorBtn.textContent = '¡Copiado!';
+                setTimeout(() => {
+                    copyErrorBtn.textContent = 'Copiar Error';
+                }, 2000);
+            }).catch(err => {
+                console.error('No se pudo copiar el error: ', err);
+                copyErrorBtn.textContent = 'Error al copiar';
+            });
+        });
+
+        // Capturar errores de JavaScript estándar
+        window.onerror = function (message, source, lineno, colno, error) {
+            const errorInfo = `Error: ${message}\nArchivo: ${source}\nLínea: ${lineno}, Columna: ${colno}\n\nPila de llamadas:\n${error ? error.stack : 'No disponible'}`;
+            showErrorModal(errorInfo);
+            return true; // Evita que el error se muestre en la consola del navegador por defecto
+        };
+
+        // Capturar errores en promesas que no fueron manejados (ej. fetch)
+        window.addEventListener('unhandledrejection', function (event) {
+            const reason = event.reason;
+            let errorInfo = 'Error en una promesa no manejada.\n';
+            if (reason instanceof Error) {
+                if (reason.message.includes('network-request-failed')) {
+                    if (!hasReloaded) {
+                        hasReloaded = true;
+                        window.location.reload();
+                        return; // No mostrar modal, solo recargar
+                    } else {
+                        errorInfo = 'Error de conexión a internet. Verifica tu conexión y vuelve a intentarlo.';
+                    }
+                } else {
+                    errorInfo += `Error: ${reason.message}\n\nPila de llamadas:\n${reason.stack}`;
+                }
+            }
+            else {
+                errorInfo += `Razón: ${JSON.stringify(reason, null, 2)}`;
+            }
+            showErrorModal(errorInfo);
+        });
+    </script>
+
+    <!-- 3. Registrar el Service Worker -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => { // --- CORRECCIÓN: Usar 'load' para asegurar que todo el DOM esté listo
+                navigator.serviceWorker.register('sw.js')
+                    .then(registration => { /* El Service Worker se registró correctamente. */ })
+                    .catch(error => {
+                        console.log('Error en el registro del Service Worker:', error);
+                    });
+            });
+        }
+
+        // Escuchar cambios de orientación para asegurar que la UI se actualice
+        screen.orientation.addEventListener('change', () => {
+            window.dispatchEvent(new Event('resize'));
+        });
+    </script>
+    <script>
+        const newPowerBarContainer = document.getElementById('newPowerBarContainer');
+        const newPowerBarHandle = document.getElementById('newPowerBarHandle');
+
+        let isDragging = false;
+        let powerPercent = 0;
+        let dragStartY = 0; // --- NUEVO: Para guardar la posición Y inicial del arrastre
+
+        // --- CORRECCIÓN: El evento ahora se escucha en todo el contenedor de la barra ---
+        newPowerBarContainer.addEventListener('pointerdown', (e) => {
+            isDragging = true;
+            newPowerBarContainer.setPointerCapture(e.pointerId); // Capturar el puntero en el contenedor
+            e.preventDefault(); // Prevenir el comportamiento por defecto del navegador
+
+            // Guardar la posición Y inicial y resetear la barra a 0%
+            dragStartY = e.clientY;
+            powerPercent = 0;
+            updatePowerBar(0); // Actualizar la UI a 0%
+        });
+
+        document.addEventListener('pointermove', (e) => {
+            if (!isDragging) return;
+
+            const rect = newPowerBarContainer.getBoundingClientRect();
+            const containerHeight = rect.height;
+
+            // --- CORRECCIÓN: El arrastre ahora es de abajo hacia arriba para cargar potencia ---
+            const dragDistance = e.clientY - dragStartY;
+
+            // --- CORRECCIÓN: La potencia y la posición visual ahora se basan en el mismo cálculo ---
+            // Esto sincroniza perfectamente el movimiento del taco con el porcentaje.
+            // El recorrido total para llegar al 100% es la altura de la barra.
+            // --- CORRECCIÓN: Se limita el recorrido a 1.0 para que no pase del 100%.
+            const newPowerPercent = Math.max(0, Math.min(dragDistance / containerHeight, 1.0));
+            
+            // Guardamos la potencia para el cálculo de disparo y la posición visual.
+            powerPercent = newPowerPercent; 
+            // --- CORRECCIÓN: Como ya no hay sobrerrecorrido, solo pasamos un valor.
+            // Ambos argumentos (display y posición) usarán el mismo porcentaje.
+            updatePowerBar(powerPercent, powerPercent);
+        });
+
+        document.addEventListener('pointerup', (e) => {
+            if (isDragging) {
+                isDragging = false;
+                try {
+                    // --- CORRECCIÓN: Usar el 'e' del evento para obtener el pointerId ---
+                    if (e.pointerId) newPowerBarContainer.releasePointerCapture(e.pointerId);
+                } catch (err) { /* La captura del puntero ya no existía, no hay problema. */ }
+                
+                // --- CORRECCIÓN: Mostrar la potencia real de disparo (limitada a 100%) ---
+                console.log(`Disparo con potencia: ${Math.round(Math.min(powerPercent, 1) * 100)}%`);
+
+                // --- SOLUCIÓN: Llamar a la función de disparo global ---
+                if (window.shoot) {
+                    window.shoot(powerPercent);
+                }
+
+                // Animar la barra de vuelta a 0%
+                newPowerBarHandle.style.transition = 'top 0.3s ease-out';
+                updatePowerBar(0, 0); // Resetear tanto la potencia como la posición visual
+                // Quitar la transición después de la animación para que el arrastre sea instantáneo
+                setTimeout(() => {
+                    newPowerBarHandle.style.transition = '';
+                }, 300);
+            }
+        });
+
+        // Función que actualiza la UI de la barra de potencia
+        function updatePowerBar(powerPercent, visualPercent) {
+            // Si visualPercent no se proporciona, se usa powerPercent.
+            const displayPercent = visualPercent !== undefined ? visualPercent : powerPercent;
+            const containerHeight = newPowerBarContainer.offsetHeight;
+
+            // --- CORRECCIÓN: El taco empieza abajo y se mueve hacia arriba ---
+            // 1. La posición inicial (0%) es abajo del todo. 
+            //    Para que empiece más abajo, multiplica containerHeight por un número mayor (ej: 1.5).
+            const startPosition = containerHeight * 1.4;
+            // 2. A medida que se arrastra, el taco sube. El recorrido es la altura del contenedor.
+            const topPosition = startPosition - (displayPercent * containerHeight);
+
+            // Actualizar la posición del taco
+            newPowerBarHandle.style.top = `${topPosition}px`;
+        }
+
+        // Inicializar la barra de potencia a 0
+        updatePowerBar(0, 0);
+
+
+    </script>
+    <script>
+        // --- NUEVO: Lógica de orientación para Android y iOS ---
+        async function lockOrientation() {
+          const rotateOverlay = document.getElementById('rotate-device-overlay');
+          const gameContainer = document.getElementById('gameContainer');
+          const rotateTitle = rotateOverlay.querySelector('h2');
+          const rotateParagraph = rotateOverlay.querySelector('p');
+    
+          // Detectar si es iOS
+          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    
+          // Función para comprobar y mostrar/ocultar el overlay
+          const checkOrientation = () => {
+            const isPortrait = window.matchMedia("(orientation: portrait)").matches;
+            if (isPortrait) {
+              rotateOverlay.classList.add('visible');
+              if(gameContainer) gameContainer.style.display = 'none';
+              // Mensaje específico para iOS
+              if (isIOS) {
+                rotateTitle.textContent = 'Gira tu iPhone/iPad';
+                rotateParagraph.textContent = 'Por favor, gira manualmente tu dispositivo a modo horizontal para jugar.';
+              } else {
+                rotateTitle.textContent = 'Gira tu dispositivo';
+                rotateParagraph.textContent = 'Para una mejor experiencia, por favor, usa el modo horizontal.';
+              }
+            } else {
+              rotateOverlay.classList.remove('visible');
+              if(gameContainer) gameContainer.style.display = 'block';
+            }
+          };
+    
+          try {
+            if (screen.orientation && typeof screen.orientation.lock === 'function') {
+              await screen.orientation.lock('landscape');
+            }
+          } catch (error) {
+            // Silencio, esperado en iOS y algunos navegadores.
+          }
+    
+          checkOrientation();
+          window.addEventListener('orientationchange', checkOrientation);
+          window.addEventListener('resize', checkOrientation);
+        }
+        window.addEventListener('load', lockOrientation);
+    </script>
+
+    <script>
+        // Función para mostrar el modal de fin de partida
+        function showGameOverModal(gameData) {
+            const winnerUid = gameData.winner;
+            const loserUid = gameData.loser;
+
+            const winnerUsername = gameData.player1.uid === winnerUid ? gameData.player1.username : gameData.player2.username;
+            const loserUsername = gameData.player1.uid === loserUid ? gameData.player1.username : gameData.player2.username;
+
+            const winnerAvatar = `imajenes/perfil/${gameData.player1.uid === winnerUid ? gameData.player1.profileImageName : gameData.player2.profileImageName}`;
+            const loserAvatar = `imajenes/perfil/${gameData.player1.uid === loserUid ? gameData.player1.profileImageName : gameData.player2.profileImageName}`;
+
+            const betAmount = gameData.betAmount || 0;
+            const totalWinnings = betAmount * 2;
+            const actualWinnerAmount = betAmount === 0 ? 1000 : totalWinnings; // No house rake
+
+            // Guardar en localStorage del padre para que home.html lo lea
+            console.log('setting window.top.localStorage');
+            window.top.localStorage.setItem('gameEnded', 'true');
+            window.top.localStorage.setItem('winnerUsername', winnerUsername);
+            window.top.localStorage.setItem('loserUsername', loserUsername);
+            window.top.localStorage.setItem('winnerAvatar', winnerAvatar);
+            window.top.localStorage.setItem('loserAvatar', loserAvatar);
+            window.top.localStorage.setItem('winnerAmount', actualWinnerAmount.toString());
+            window.top.localStorage.setItem('loserAmount', betAmount.toString());
+            console.log('window.top.localStorage set in index.html for game end, gameEnded:', window.top.localStorage.getItem('gameEnded'));
+
+            // Poblar el modal
+            document.getElementById('winner-avatar').src = winnerAvatar;
+            document.getElementById('winner-username').textContent = winnerUsername;
+            document.getElementById('winner-amount').textContent = `Ganó: $${actualWinnerAmount}`;
+            document.getElementById('loser-avatar').src = loserAvatar;
+            document.getElementById('loser-username').textContent = loserUsername;
+            document.getElementById('loser-amount').textContent = `Perdió: $${betAmount}`;
+
+            // Mostrar el modal
+            const modal = document.getElementById('always-visible-modal');
+            modal.style.display = 'flex';
+            modal.style.opacity = '1';
+            modal.style.visibility = 'visible';
+            modal.style.zIndex = '10000';
+
+            // Evento para cerrar el modal
+            document.getElementById('close-game-over-modal-btn').addEventListener('click', () => {
+                modal.style.display = 'none';
+                // Redirigir a home después de cerrar
+                window.location.href = 'login/home.html';
+            });
+        }
+    </script>
+
+    <!-- --- NUEVO: Botón para el chat en el juego --- -->
+    <div id="game-chat-button-container">
+        <button id="toggle-game-chat-btn" class="game-chat-button">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- --- NUEVO: Modal de Chat en el Juego --- -->
+    <div id="game-chat-modal" class="chat-modal">
+        <div class="chat-header">
+            <div class="player-info">
+                <span id="game-chat-player1-name" class="player-name"></span>
+                <img id="game-chat-player1-avatar" class="chat-avatar" src="" alt="Avatar Jugador 1" style="display: none;">
+                <span class="vs-text">vs</span>
+                <img id="game-chat-player2-avatar" class="chat-avatar" src="" alt="Avatar Jugador 2" style="display: none;">
+                <span id="game-chat-player2-name" class="player-name opponent"></span>
+            </div>
+            <button id="minimize-game-chat-btn" class="minimize-chat-btn" title="Minimizar Chat">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+            </button>
+        </div>
+        <div id="game-chat-messages" class="chat-messages">
+            <!-- Los mensajes del chat se cargarán aquí -->
+        </div>
+        <div class="chat-controls-container">
+            <div class="chat-input-area">
+                <input type="text" id="game-chat-message-input" placeholder="Escribe un mensaje...">
+                <button id="send-game-chat-message-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="white">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+</body></html>
